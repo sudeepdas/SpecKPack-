@@ -1,0 +1,25 @@
+#! /usr/bin/env python
+import argparse, os
+from flipper import flipperDict
+import xcorrReal
+
+
+if __name__ == '__main__':
+    
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="compute real space correlation using random maps")
+    parser.add_argument('param_file', type=str, help='the parameter file') 
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='whether to ouput to std out')
+    args = parser.parse_args()
+    
+    # read in parameters
+    p = flipperDict.flipperDict(args.param_file)
+    p.readFromFile(args.param_file)
+    
+    
+    # if we want to suppress out, redirect stdout to nothing
+    if args.quiet:
+        sys.stdout = open(os.devnull, "w")
+        
+    # compute the real space correlation for nMaps pairs of true x random maps
+    xcorrReal.realSpaceCorrFromRandoms(p['paramsToUpdate'], p['valsToUpdate'])

@@ -1,0 +1,79 @@
+#!/usr/bin/env python
+from flipper import *
+import time
+import pwd
+from stat import *
+
+p = flipperDict.flipperDict()
+p.readFromFile(sys.argv[1])
+freqs = p['frequencies']
+
+
+assert(os.path.exists("spectra/spectrum_%dx%d.dat"%(freqs[0],freqs[-1])))
+#assert()
+#if not(os.path.exists("spectra/spectrum_%dx%d.ps"%(freqs[0],freqs[-1]))):
+os.system("plotSpectrumPaper %s"%sys.argv[1])
+#if not((os.path.exists("auxMaps/sum_diff_%d.eps"%freqs[0]))):
+os.system("plotMaps %s"%sys.argv[1])
+    
+#if not(os.path.exists("mcm/BblMean.dat")):
+os.system("computeBinnedTheory %s"%sys.argv[1])
+
+
+#if not(os.path.exists("noiseAndWeights/weightMap_%dx%d_000.eps"%(freqs[0],freqs[-1]))):
+os.system("plotNoiseAndWeights %s"%sys.argv[1])
+    
+try:
+    os.makedirs("results_%dx%d/data/"%(freqs[0],freqs[-1]))
+except:
+    pass
+
+try:
+    os.makedirs("results_%dx%d/plots/"%(freqs[0],freqs[-1]))
+except:
+    pass
+
+resultDir = "results_%dx%d/"%(freqs[0],freqs[-1])
+os.system("cp spectra/*ps auxMaps/*eps noiseAndWeights/weightMap*eps %s/plots/"%resultDir)
+os.system("cp spectra/spectrum*dat mcm/*dat %s/data/"%resultDir)
+os.system("cp spectra/*AutoGlobal*dat %s/data/"%resultDir)
+try:
+    os.system("cp spectra/Nlbin*dat %s/data/"%resultDir)
+except:
+    pass
+os.system("cp %s %s/data/"%(p['theoryFile'],resultDir))
+os.system("cp %s %s/data/"%(p['theoryFile'],resultDir))
+beamFile = os.environ['SPECK_DIR']+'/data/'+p['beamFile_%s'%freqs[0]]
+os.system("cp %s %s/data/"%(beamFile,resultDir))
+beamFile = os.environ['SPECK_DIR']+'/data/'+p['beamFile_%s'%freqs[-1]]
+os.system("cp %s %s/data/"%(beamFile,resultDir))
+
+os.system("cp global.dict %s/data/"%resultDir)
+os.system("cp %s %s/data/"%(os.environ['FLIPPER_DIR']+'/params/'+p['binningFile'],resultDir))
+
+g = open(resultDir+"/README",mode="w")
+g.write("Spectrum in package run in root directory: %s\n"%os.path.abspath("."))
+fname = "spectra/spectrum_%dx%d.dat"%(freqs[0],freqs[-1])
+g.write("Spectrum generated on %s "%(time.strftime("%m/%d/%Y %I:%M:%S %p",time.localtime(os.path.getmtime(fname)))))
+st = os.stat(fname)
+uname =  pwd.getpwuid(st[ST_UID])
+g.write("by user: %s\n"%uname[0])
+
+g.close()
+
+#grabResults dict
+
+q = flipperDict.flipperDict()
+
+thisDir = os.path.abspath(".")
+q["results_%sx%s"%(freqs[0],freqs[-1])] = "%s/%s"%(thisDir,resultDir)
+
+tag = (thisDir.split("/"))[-1]
+print "tag0", tag 
+freqTag = '%dx%d'%(freqs[0],freqs[-1])
+if freqs[0] == freqs[-1]:
+    freqTag = "%d"%freqs[0]
+
+tag = (thisDir.split(freqTag))[-1]
+print tag    
+q.writeToFile("results_%sx%s_%s.dict"%(freqs[0],freqs[-1],tag))

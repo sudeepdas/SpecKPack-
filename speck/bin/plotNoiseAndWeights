@@ -1,0 +1,33 @@
+#!/usr/bin/env python
+from flipper import *
+import pickle
+p = flipperDict.flipperDict()
+p.readFromFile(sys.argv[1])
+freqs = p['frequencies']
+map = liteMap.liteMapFromFits("patches/patch_%d_000_0"%freqs[0])
+
+p2d = fftTools.powerFromLiteMap(map)
+
+for freq in freqs:
+    m = liteMap.liteMapFromFits\
+        ("noiseAndWeights/noisePower_%d_000.fits"%freq)
+    p2d.powerMap = numpy.fft.fftshift(m.data[:])
+    p2d.powerMap[:] *= p2d.modLMap[:]**(2)
+    p2d.powerMap[:] += 1.0
+    p2d.plot(zoomUptoL=p['trimAtL'],log=True)
+    pylab.savefig("noiseAndWeights/noisePower_%d_000.png"%freq)
+    pylab.clf()
+
+w = pickle.load(open('noiseAndWeights/weightMap000.pkl'))
+id = numpy.where(w.modLMap > p['trimAtL'])
+w.powerMap[id] = 0.
+pylab.figure() #figsize=(8,6.5))
+pylab.gray()
+pylab.rcParams.update({'xtick.labelsize':20,'ytick.labelsize':20})
+pylab.axes([0.125,0.2,0.95-0.125,0.95-0.2])
+w.plot(zoomUptoL=10000+500,valueRange=[0,2])
+pylab.xlabel(r"$\ell_x$",fontsize=26)
+pylab.ylabel(r"$\ell_y$",fontsize=26)
+
+pylab.savefig("noiseAndWeights/weightMap_%dx%d_000.png"%(freqs[0],freqs[-1]))
+pylab.savefig("noiseAndWeights/weightMap_%dx%d_000.eps"%(freqs[0],freqs[-1]))

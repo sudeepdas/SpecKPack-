@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+from flipper import *
+
+p = flipperDict.flipperDict()
+
+dir_148 = sys.argv[1]
+dir_220 = sys.argv[2]
+
+
+X = numpy.loadtxt("%s/spectra/clBinAutoGlobalMean_148X148.dat"%(dir_148))
+l = X[:,0]
+clAutoAr1 = X[:,1]
+
+
+X = numpy.loadtxt("%s/spectra/spectrum_148x148.dat"%(dir_148))
+l = X[:,0]
+clCrossAr1 = X[:,1]
+
+if dir_220 !=".":
+
+    X = numpy.loadtxt("%s/spectra/clBinAutoGlobalMean_220X220.dat"%(dir_220))
+    l2 = X[:,0]
+    clAutoAr2 = X[:,1]
+
+    X = numpy.loadtxt("%s/spectra/spectrum_220x220.dat"%(dir_220))
+    l2 = X[:,0]
+    clCrossAr2 = X[:,1]
+
+
+clNoiseAr1 = (clAutoAr1 - clCrossAr1)/4.
+
+if dir_220 !=".":
+    clNoiseAr2 = (clAutoAr2 - clCrossAr2)/4.
+
+
+Y = numpy.loadtxt(os.environ['SPECK_DIR']+"/data/bode_almost_wmap5_lmax_1e4_lensedCls.dat")
+lth = Y[:,0]
+clth = Y[:,1]
+#pylab.semilogy(l,l**2*clCross/(2*numpy.pi),'o')
+pylab.semilogy(lth,clth)
+pylab.semilogy(l,l**2*clNoiseAr1/(2*numpy.pi),'o',label = '148 GHz Noise',lw=2)
+if dir_220 !=".":
+    pylab.semilogy(l2,l2**2*clNoiseAr2/(2*numpy.pi),'o',label = '220 GHz Noise',lw=2)
+
+pi = numpy.pi
+
+ell, bell = numpy.loadtxt(os.environ['SPECK_DIR']+'/data/B_l_AR1.dat',unpack=True)
+lb, blb = fftTools.binTheoryPower(ell,bell,'BIN_50_SPT_v3')
+
+id = numpy.where(l>5000)
+dT =  numpy.sqrt(numpy.mean(clNoiseAr1[id]*blb[id]**2*(180*60./pi)**2))
+
+pylab.semilogy(lb,lb**2*(dT*numpy.pi/(180*60.))**2/(2*pi)/blb**2,label='%4.1f $\mu$K-arcmin'%dT)
+
+if dir_220 !=".":
+    dT = 45.0
+    id = numpy.where(l>5000)
+    dT =  numpy.sqrt(numpy.mean(clNoiseAr2[id]*blb[id]**2*(180*60./pi)**2))
+    
+
+    ell, bell = numpy.loadtxt(os.environ['SPECK_DIR']+'/data/B_l_AR2.dat',unpack=True)
+    lb, blb = fftTools.binTheoryPower(ell,bell,'BIN_50_SPT_v3')
+    
+    pylab.semilogy(lb,lb**2*(dT*numpy.pi/(180*60.))**2/(2*pi)/blb**2,label='%4.1f $\mu$K-arcmin'%dT)
+    
+#pylab.errorbar(l,l**2*clCross/(2*numpy.pi),l**2*clCrossErr/(2*numpy.pi), fmt='o')
+pylab.xlabel(r"$\ell$",fontsize=16)
+pylab.ylabel(r"$\ell(\ell+1) C_\ell/(2\pi)$",fontsize=16)
+pylab.ylim(10,1e7)
+pylab.xlim(1,10000)
+pylab.legend()
+tag = ((os.path.abspath(".")).split("/"))[-1]  
+pylab.title("Signal vs Season Noise")
+pylab.savefig("sigNoise_%s.png"%tag)
+#pylab.show()

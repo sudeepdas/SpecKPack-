@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+from flipper import *
+import pickle
+
+p = flipperDict.flipperDict()
+
+p.readFromFile(sys.argv[1])
+
+theoryFile = p['theoryFile']
+mcmtag = p['mcmFileRoot']
+freqs = p['frequencies']
+patchDir = "patches/"
+
+l = os.listdir(patchDir)
+nDivs = 0
+nPatches = 0
+
+
+for il in l:
+    if 'patch_%d_000'%freqs[0] in il:
+        nDivs += 1
+    if 'patch_%d_00'%freqs[0] in il and '_0' in il[-2:]:
+        print il
+        nPatches += 1
+        
+print "Found %d patches with %d sub-season divisions in each"%(nPatches, nDivs)
+
+X= numpy.loadtxt(theoryFile)
+lTh = X[:,0]
+clTh= X[:,1]/(lTh*(lTh+1))*2*numpy.pi
+
+assert(lTh[0] == 2.0)
+lTh = numpy.append([0.,1.],lTh)
+clTh = numpy.append([0.,0.],clTh)
+print lTh
+trimAtL = p['trimAtL']
+
+if lTh.max() < trimAtL:
+    nbuff = trimAtL-lTh.max() +1
+    
+    lTh = numpy.append(lTh, numpy.arange(lTh.max()+1,trimAtL+1))
+    clTh =  numpy.append(clTh, numpy.zeros(nbuff))
+
+lL,lU,lC = fftTools.readBinningFile(p['binningFile'])
+
+
+lL = lL[lU<trimAtL]
+lU = lU[lU<trimAtL]
+lC = lC[lU<trimAtL]
+
+clBinned = []
+for i in xrange(nPatches):
+    Bbl = pickle.load(open("mcm/Bbl.%s_%03d.pkl"%(mcmtag,i)))
+    clBinned += [numpy.dot(Bbl,clTh[0:Bbl.shape[1]])]
+    if i == 0:
+        BblAll = Bbl.copy()
+    else:
+        BblAll[:,:] += Bbl[:,:]
+
+BblMean = BblAll/nPatches
+g = open("mcm/BblMean.dat", mode = "w")
+for il in xrange(Bbl.shape[1]):
+    bb = Bbl[:,il]
+    line = ''.join(["%20.8e "%b for b in bb])
+    g.write("%s %s\n"%(lTh[il],line))
+g.close()                             
+
+clBinned = numpy.mean(clBinned,axis=0)
+
+lbinBox,clBinBox= fftTools.binTheoryPower(lTh,clTh,p['binningFile'])
+
+
+g = open("mcm/bandPowerBinnedTheory.dat",mode="w")
+for i in xrange(len(lC)):
+    g.write("%f %e\n"%(lC[i],clBinned[i]))
+g.close()
+
+
+g = open("mcm/tophatBinnedTheory.dat","w")
+for i in xrange(len(lC)):
+    g.write("%f %e\n"%(lbinBox[i],clBinBox[i]))
+g.close()
+
+#plot the bandpower window functions
+pylab.figure(figsize=(9,3))
+pylab.subplot(211)
+for i in xrange(Bbl.shape[0]):
+    pylab.plot(lTh[0:Bbl.shape[1]],Bbl[i,:])
+pylab.xlim(1,2500)
+pylab.subplot(212)
+for i in xrange(Bbl.shape[0]):
+    pylab.plot(lTh[0:Bbl.shape[1]],Bbl[i,:])
+pylab.xlim(2500,lTh[0:Bbl.shape[1]].max())
+
+pylab.savefig("mcm/Bbl.png")
+pylab.clf()
+
+

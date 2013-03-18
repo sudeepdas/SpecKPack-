@@ -1,0 +1,131 @@
+#!/usr/bin/env python
+from flipper import liteMap
+import numpy as np
+import argparse, os, sys
+
+def makeFullACTMap(params):
+    """
+    @brief read in several real space patches and combine them into a template map
+
+    @param params: dictionary containing the following:
+        fullTemplate: path of the larger template map  (str)
+        patchDir: path of directory storing the smaller patches (str)
+        patches: list of filenames of the patches (list)
+        outDir: where to save the output FITS file (str)
+        fileTag: the file tag for ouput file (str)
+    """
+
+    # read in the template map
+    kmap = liteMap.liteMapFromFits(params['fullTemplate'])
+
+    # pixel scale of the template map
+    Ni=kmap.Nx
+    Nj=kmap.Ny
+
+    # make a copy of input template map
+    template=kmap.copy()
+    x0 = template.x0
+    if x0 > 180.0:
+        x0 -= 360.0
+    x1 = template.x1
+    if x1 > 180.0:
+        x1 -= 360.0
+
+    # zero out a weight map and the template map
+    weight=np.ndarray(shape=(Nj,Ni), dtype=float)
+    weight[:,:]=0.0
+    template.data[:,:]=0.0
+
+    wscore=0.0
+
+    # read in the patches
+    patches = params['patches']
+
+    N_patches = len(patches) # the number of patches
+    error = 0.0
+    error_weight = 0.0
+    
+    # loop over each patch which we need to interpolate
+    for k in range(0, N_patches):
+
+        print "interpolating map %s" %patches[k]
+
+        patch = liteMap.liteMapFromFits(params['patchDir']+patches[k])
+        
+        # make sure RA of patch is (-180, 180)
+        if patch.x0 > 180.0:  
+            patch.x0 -= 360.0
+        if patch.x1 > 180.0:
+            patch.x1 -= 360.0
+
+        # check that the patch overlaps with the template map at all:
+        if patch.x0 > x0 and patch.x1 > x0:
+            print 'map %s does not overlap...' %patches[k]
+            continue
+        if patch.x0 < x1 and patch.x1 < x1:
+            print 'map %s does not overlap...' %patches[k]
+            continue
+
+        # new pixel size is smaller by 2^2
+        patch_finer=liteMap.upgradePixelPitch(patch, 2.0)
+
+        # new pixel scale for input patch
+        N1=patch_finer.Nx
+        N2=patch_finer.Ny
+
+        score = 0 # keep score of how we do
+        
+        # loop over the pixels of the finer patch
+        for i in xrange(0,N1-1):
+            for j in xrange(0,N2-1):
+
+                # ra, dec of pixel location (i, j) in input patch
+                ra, dec = patch_finer.pixToSky(i,j)
+
+                # interpolate the value of the patch at (ra, dec) onto the correct template pixel
+                try:  
+                    i_opt, j_opt = template.skyToPix(ra,dec)
+
+                    j_opt = np.round(j_opt)
+                    i_opt = np.round(i_opt)
+                    if (i_opt > 0 and i_opt < template.Nx) and (j_opt > 0 and j_opt < template.Ny):
+
+                        template.data[j_opt,i_opt] += patch_finer.data[j,i]
+                        score += 1
+                        weight[j_opt,i_opt] += 1.0 
+
+                except IndexError:
+                    error += 1
+                pass
+                
+        print score/(1.0*N1*N2)
+
+    # divide out the weights to get the correct mean in each pixel
+    inds = np.where(weight > 0.0)
+    template.data[inds] /= weight[inds]
+    
+    # save the full map
+    template.writeFits(params['outDir']+'act_kmap_resampled_filtered_%s.fits' %params['fileTag'], overWrite=True)
+    
+    return
+
+
+if __name__ == '__main__':
+    
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="make a full ACT map from several smaller patches, in CFHT pixelization")
+    parser.add_argument('param_file', type=str, help='the parameter file')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='whether to ouput progress to std out')
+      
+    args = parser.parse_args()
+    
+    # read in parameters
+    params = flipperDict.flipperDict(args.param_file)
+    params.readFromFile(args.param_file)
+
+    # if we want to suppress out, redirect stdout to nothing
+    if args.quiet:
+        sys.stdout = open(os.devnull, "w")
+        
+    # make the full ACT map
+    makeFullACTMap(params)

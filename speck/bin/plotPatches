@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+from flipper import *
+import scipy.ndimage
+
+import astLib.astPlots as asp
+    
+
+def _plot(freq,calib = 1.0):
+
+    for i in xrange(4):
+        map0 = liteMap.liteMapFromFits("auxMaps/subMapFiltered_%d_%d.fits"%(freq,i))
+        map0.info()
+        if i == 0:
+            map = map0.copy()
+        else:
+            # pass
+            map.data[:] += map0.data[:]
+
+    map.data[:]  /= 4.
+    map.data[:] *= calib
+    
+    pylab.figure(figsize = (20,5))
+    map.plot(show=False,valueRange=[-200,200],colBarOrient="horizontal",colBarLabel="T "+r"$(\mu K)$",\
+             colorMapName= "jet")
+    #asp.ImagePlot(map.data,map.wcs,cutLevels=[-200,200])
+    # print pylab.gca().
+    for i in xrange(4):
+        print i
+        patch = liteMap.liteMapFromFits("patches/patch_%d_00%d_0"%(freq,i))
+        x0 = patch.x0#/(patch.pixScaleX/60.)
+        x1 = patch.x1#/(patch.pixScaleX/60.)
+        y0 = patch.y0#/(patch.pixScaleY/60.)
+        y1 = patch.y1#/(patch.pixScaleY/60.)
+        rect = pylab.Rectangle((x1,y0),numpy.abs(x1-x0),numpy.abs(y1-y0),fill=False,edgecolor='black',\
+                                   lw = 2)
+        pylab.gca().add_patch(rect)
+    pylab.xlabel("RA (deg)")
+    pylab.ylabel("Dec (deg)")
+    pylab.xlim(map.x0,map.x1)
+    # pylab.show()
+
+    pylab.title("%d GHz"%freq)
+    pylab.savefig("auxMaps/patches_%d.png"%(freq))
+    pylab.savefig("auxMaps/patches_%d.eps"%(freq))
+    pylab.clf()
+    
+if __name__ == "__main__":
+
+    p = flipperDict.flipperDict()
+    p.readFromFile(sys.argv[1])
+    
+    freqs = p['frequencies']
+    
+    for freq in freqs:
+        _plot(freq,calib = p['calibration_%d'%freq])
+        
+    if len(freqs) > 1:
+        os.chdir("auxMaps")
+        os.system("convert -loop 0 -delay 100 patches_*.png patches.gif")

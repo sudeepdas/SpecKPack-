@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+# uses SkyMap by Joe Fowler
+from flipper import *
+import skyMap 
+import speckMisc
+
+p = flipperDict.flipperDict()
+p.readFromFile(sys.argv[1])
+
+freqs = p['frequencies']
+
+
+patchDir = 'patches'
+
+
+
+# get the patch boundaries for plotting
+     
+nDivs,nPatches = speckMisc.getPatchStats(patchDir,freqs[0])
+print "Found %d patches with %d sub-season divisions in each"%(nPatches, nDivs)
+
+RAs = []
+Decs = []
+for i in xrange(nPatches):
+     patch = liteMap.liteMapFromFits("patches/patch_%d_00%d_0"%(freqs[0],i))
+     RAs.append([patch.x1,patch.x0])
+     Decs.append([patch.y0,patch.y1])
+     
+
+#sbm = liteMap.liteMapFromFits("auxMaps/subMap_%d_0.fits"%freq)
+print RAs, Decs
+for freq in freqs:
+     cal = p['calibration_%d'%freq]
+     fourwaymaps = p['mapFiles_%d'%freq]
+     map = p['mapFile_all_%d'%freq]
+     weight = p['weightFile_all_%d'%freq]
+     pad = 0.4
+     raFac = numpy.cos(numpy.pi/180.*(p['dec0']+p['dec1'])/2.)
+     sm5 = skyMap.SkyMap(mapfile =map, weightfile=weight, \
+                         twowayfiles=fourwaymaps,\
+                         raRange=[p['ra0']-pad/raFac,p['ra1']+pad/raFac], \
+                         decRange=[p['dec0']-pad,p['dec1']+pad],cal_correction=cal)
+     sm5.filter(minEll=300, deltaEll=400, maxEll=10000)
+     sm5.compute_diff()
+     sm5.compute_variance()
+     skyMap.figForPaper_das(sm5, filename="auxMaps/maps_filter100_500_%d.png"%freq,boxRAs=RAs, boxDecs=Decs)
+     pylab.clf()
+     skyMap.figForPaper_das(sm5, filename="auxMaps/sum_diff_%d.eps"%freq,boxRAs=RAs, boxDecs=Decs)
+     pylab.clf()
+     if freq == 148:
+          cutLevels = [10,50]
+     else:
+          cutLevels = [30,70]
+     print "cuteLevels set to %s"%cutLevels
+     skyMap.figForPaper_das_v2(sm5, filename="auxMaps/sensMap_%d.eps"%freq,boxRAs=RAs, boxDecs=Decs,cutLevels=cutLevels)
+     pylab.clf()
+     
+     
+     sm7 = skyMap.SkyMap(mapfile =map, weightfile=weight, \
+                         twowayfiles=fourwaymaps,\
+                         raRange=[p['ra0']-pad/raFac,p['ra1']+pad/raFac], \
+                         decRange=[p['dec0']-pad,p['dec1']+pad],cal_correction = cal)
+     sm7.filter(minEll=300, deltaEll=400, maxEll=2000)
+     sm7.compute_diff()
+     sm7.compute_variance()
+     skyMap.figForPaper_das(sm7, filename="auxMaps/maps_filter100_500_2000_%d.png"%freq,boxRAs=RAs, boxDecs=Decs)
+     pylab.clf()
+     del sm5
+     del sm7
+

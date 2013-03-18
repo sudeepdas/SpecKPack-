@@ -1,0 +1,143 @@
+#!/usr/bin/env python
+from flipper import liteMap, fftTools
+import numpy as np
+import pickle, argparse, os, sys
+from scipy.interpolate import InterpolatedUnivariateSpline 
+import scipy.ndimage
+    
+def filterACTPatches(params):
+    """
+    @brief read in a data array representing an ACT kappa map in Fourier space and output
+    a filtered real space version of the map
+    
+    @param params: dictionary containing the following:
+           
+          templateDir: path where the template real space maps are stored (str)
+          kappaDir: path where the ACT kappa map fourier transform data arrays are stored (str)
+          kappaRoot: the root of the kappa file to be processed (str)
+          nullKappaRoot: the root of the null kappa file to use, or None (str)
+          patchNum: patch number being processed (str)
+          kappaNum: kappa file number being processed (str)
+          elTrim: only consider ell < elTrim (float)
+          filter: the name of the filter to apply ['top_hat', 'optimal']
+          fileTag: the file tag for ouput files (str)
+       
+    """
+    # the patch and kappa number
+    patchNum = params['patchNum']
+    kappaNum = params['kappaNum']
+
+    # this is the template real space map
+    m = liteMap.liteMapFromFits(params['templateDir'] + "patch_148_%s_all" %patchNum)
+
+    # make an ft object from the template
+    ft = fftTools.fftFromLiteMap(m)
+
+    # make template power map for filter
+    pNoise = fftTools.powerFromLiteMap(m)
+
+    # max el value
+    elTrim = params['elTrim']
+
+    # load the kappa data array in Fourier space (trimmed as well)
+    ftTrim = np.nan_to_num(pickle.load(open(params['kappaDir'] + params['kappaRoot'])))
+
+    # compute normalization factor for power spectrum
+    area = ft.Nx*ft.Ny*ft.pixScaleX*ft.pixScaleY
+    factor = np.sqrt(area/(ft.Nx*ft.Ny*1.0)**2)
+    ftTrim /= factor # take out normalization of power spectrum
+    
+
+    print "normalization factor to divide by = %.4e" %factor
+
+    # zero out the FT of the template
+    ft.kMap[:] = 0.
+
+    # get indices of pixels that have values of ell less than elMax
+    idx = np.where((ft.lx < elTrim) & (ft.lx > -elTrim))[0]
+    idy = np.where((ft.ly < elTrim) & (ft.ly > -elTrim))[0]
+
+    # make a meshgrid of indices for template
+    ix,iy = np.meshgrid(idx,idy)
+    
+    # make meshgrid of indices for trimmed kappa map
+    iy2, ix2 = np.mgrid[0:ftTrim.shape[0],0:ftTrim.shape[1]]
+
+    # fill in template FT with trimmed kappa map vals
+    ft.kMap[iy.flatten(),ix.flatten()] = ftTrim[iy2.flatten(),ix2.flatten()]
+
+    # if null kappas are given, make additional null real space map 
+    if params['nullKappaRoot'] is not None:
+
+        # load the kappa map in Fourier space (trimmed as well)
+        ftTrim = np.nan_to_num(pickle.load(open(params['kappaDir'] + params['nullKappaRoot'])))
+
+        # get indices of pixels that have values of el less than elMax
+        idx = np.where((ft.lx < elTrim) & (ft.lx > -elTrim))[0]
+        idy = np.where((ft.ly < elTrim) & (ft.ly > -elTrim))[0]
+
+        # make a meshgrid of indices for template
+        ix,iy = np.meshgrid(idx,idy)
+
+        ftTrim /= factor # take out normalization of power spectrum
+
+        # make meshgrid of indices for trimmed kappa map
+        iy2, ix2 = np.mgrid[0:ftTrim.shape[0],0:ftTrim.shape[1]]
+
+        # fill in template FT with trimmed kappa map vals minus null kappa values
+        ft.kMap[iy.flatten(),ix.flatten()] -= ftTrim[iy2.flatten(),ix2.flatten()]
+
+    # make the real space map from the FFT and save as FITS
+    m.data = ft.mapFromFFT()
+    m.writeFits("patch_148_%s_all_kappa_%s_%s.fits"%(patchNum, kappaNum, params['fileTag']), overWrite=True)
+
+    #### now make the filter
+    if params['filter'] == 'top_hat':
+
+        ell = np.arange(elTrim)
+        
+        # make the top hat filter
+        try:
+            Fell = corrFuncs.topHatFilter(ell, ell_lcut=params['ell_lcut'], ell_hcut=params['ell_hcut'], exp_width=params['exp_width'])
+        except:
+            Fell = corrFuncs.topHatFilter(ell)
+            
+    elif params['filter'] == 'optimal':
+
+        try: 
+            ell, Fell = np.loadtxt(params['optimal_filter_path'], unpack=True)
+        except:
+            raise ValueError("optimal filter at %s file does not exist" %params['optimal_filter_path'])
+
+    else:
+        raise ValueError("Filter type unknown")
+    
+
+    # get the filtered data map and save
+    m.data = ft.mapFromFFT(kFilterFromList=[ell, Fell])
+    m.writeFits("patch_148_%s_all_kappa_%s_%s_filtered.fits"%(patchNum,kappaNum, params['fileTag']), overWrite=True)
+
+    return 
+    
+if __name__ == '__main__':
+    
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="filter ACT map patches")
+    parser.add_argument('param_file', type=str, help='the parameter file')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='whether to ouput to std out')
+      
+    args = parser.parse_args()
+    
+    # read in parameters
+    params = flipperDict.flipperDict(args.param_file)
+    params.readFromFile(args.param_file)
+    
+    # if we want to suppress out, redirect stdout to nothing
+    if args.quiet:
+        sys.stdout = open(os.devnull, "w")
+        
+    # filter the ACT patches
+    filterACTPatches(params)
+
+    
+

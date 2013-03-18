@@ -1,0 +1,85 @@
+; From Clem.
+; QUaD Feb 2009 high-ell TT data: Pipeline 1
+; as described in Friedman el al. arXiv:0901.4334v1
+; 
+; Columns are:
+; 1) band center ell
+; 2) bandpower value l(l+1)C_l/2pi in uK^2
+; 3) bandpower uncertainty
+; 4) bandpower expectation value for LCDM (WMAP5 see paper)
+; 5) estimated residual-point-source bandpower-contribution
+; 
+; The residual point source contribution in column 5 is already 
+; removed from the bandpowers in column 2 of this file.
+;
+; TT at 100 GHz
+;2009 QUaD  6000  1500  25 0 2003 13 1
+;2067  2067  2067  207.51   45.36    215.95     15.84
+;2148  2148  2148  212.90   50.37    175.07     13.88
+;2229  2229  2229  165.92   52.20    131.79     13.69
+;2310  2310  2310   31.41   66.31    113.79     15.52
+;2391  2391  2391  185.45   78.37    103.32     21.13
+;2472  2472  2472  119.59   87.72     85.14     21.83
+;2553  2553  2553  254.50  106.99     69.05     26.90
+;2634  2634  2634   55.86  142.80     61.09     32.18
+;2715  2715  2715  145.03  160.97     53.80     29.88
+;2796  2796  2796 -231.35  200.27     43.13     35.38
+;2877  2877  2877 -349.87  242.79     34.27     26.71
+;2958  2958  2958 -541.99  301.07     29.33     27.92
+;
+; TT at 150 GHz
+;2009 QUaD09  4000  1000  12 0 2003 50 2
+; Rearranged a little.
+;
+;Thanks for the high-ell!  You can pick up the QUaD point I've used 
+;from http://quad.uchicago.edu/quad/quad_datarel_2/
+;
+;QUaD May 2008 data as described in Pryke el al astro-ph/0805.1944
+;
+; Columns are:
+; 1) band center ell
+; 2) bandpower value l(l+1)C_l/2pi in uK^2
+; 3) bandpower uncertainty
+; 4) bandpower expectation value under LCDM
+;
+; When plotting the BB bandpowers the expectation values should be subtracted
+; since these are dominated by the slightly relevant leakage from EE
+; (Otherwise it tends to look like QUaD has detected BB which it has not.)
+;
+ 204  7864.50  1866.22  5144.70
+ 285  4899.67  1113.15  4253.56
+ 366  2826.29   502.66  2352.23
+ 447  2566.40   366.39  1952.16
+ 528  2284.97   394.71  2336.62
+ 609  2693.06   350.00  2056.26
+ 690  1820.96   266.82  1790.13
+ 771  1771.18   302.51  2116.88
+ 852  2146.65   285.86  2113.88
+ 933  1563.12   191.92  1466.94
+1014  1107.67   128.63  1045.73
+1095  1048.93   124.16  1094.27
+1176   930.55   122.20  1038.97
+1257   820.42    98.44   783.80
+1338   720.13    92.63   688.82
+1419   844.79   101.55   724.95
+1500   654.23    84.55   624.39
+1581   415.89    52.33   440.21
+1662   327.13    43.18   364.18
+1743   358.12    45.16   357.43
+1824   309.77    41.01   304.32
+1905   261.17    35.59   235.41
+1986   217.55    32.55   211.64
+2067   146.61  25.57    215.39      
+2148   174.63  23.66    173.96      
+2229   110.62  20.99    130.60      
+2310    78.15  22.75    113.07      
+2391    84.63  21.95    102.81      
+2472    59.57  21.98     84.49      
+2553  92.14  22.49     68.46      
+2634  86.01  25.04     60.71      
+2715  34.92  29.00     53.45      
+2796  33.18  30.08     42.73      
+2877  16.54  33.36     33.91      
+2958  -8.63  34.19     29.08    
+
+

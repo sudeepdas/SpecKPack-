@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+from flipper import flipperDict
+import xcorrFourier, xcorrUtils
+import argparse, os, sys
+try:
+    from utils.utilities import initializeProgressBar
+except:
+    pass
+
+
+if __name__ == '__main__':
+    
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="run speck pipeline to compute auto spectrum of a given map")
+    parser.add_argument('param_file', type=str, help='the parameter file')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='whether to ouput to std out')
+    parser.add_argument('--xparams', required=False, help='parameter file so we can loop over many maps') 
+    
+    args = parser.parse_args()
+    
+    # if we want to suppress out, redirect stdout to nothing
+    if args.quiet:
+        sys.stdout = open(os.devnull, "w")
+        
+    # read in parameters
+    params = flipperDict.flipperDict()
+    params.readFromFile(args.param_file)
+    
+    if args.xparams is None:
+        # run speck just once
+        err = xcorrFourier.runSpeck(params)
+    else:
+        
+        # save the original stdout
+        originalStdOut = sys.__stdout__
+        
+        # read in parameters to update for each run of speck
+        up = flipperDict.flipperDict()
+        up.readFromFile(args.xparams)
+        
+        nMaps = len(up['valsToUpdate'])
+        
+        # try to show the progress bar
+        try:
+            bar = initializeProgressBar(nMaps)
+        except:
+            pass
+
+        # loop over each set of maps
+        for i in range(nMaps):
+            
+            # try to update progress bar
+            try:
+                bar.update(i+1)
+            except:
+                pass
+                
+            # get new parameters
+            newParams = xcorrUtils.updateParams(up['paramsToUpdate'], params, up['valsToUpdate'][i])
+            
+            # hide the output from speck
+            sys.stdout = open(os.devnull, "w")
+            
+            # run speck for updated params
+            err = xcorrFourier.runSpeck(newParams)
+            
+            # restore the stdout reference
+            sys.stdout = originalStdOut
+    

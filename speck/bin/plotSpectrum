@@ -1,0 +1,218 @@
+#!/usr/bin/env python 
+from flipper import *
+from scipy.interpolate import splrep, splev
+
+def plotWithErrors(lf,clf,clferr,**kwdargs):
+    
+    pylab.errorbar(lf,clf,clferr,**kwdargs)
+    
+    k=kwdargs
+    
+    id = numpy.where((clf-clferr) <0)
+    ineg = id[0]
+    for i in ineg:
+        sign = 1.0
+        if clf[i] <0.: sign=-1
+        pylab.axvline(lf[i],ymin=0,ymax=(numpy.log(clf[i]+clferr[i])-numpy.log(yRange[0]))/\
+                      (numpy.log(yRange[1])-numpy.log(yRange[0])) ,\
+                      c=k['ecolor'],lw=1)    
+
+
+
+
+
+if __name__=="__main__":
+    pylab.rcParams.update({'axes.linewidth':2.0})
+    pylab.rcParams.update({'xtick.major.size':7.0})
+    pylab.rcParams.update({'ytick.major.size':7.0})
+    pylab.rcParams['text.usetex']=True
+    pylab.rcParams['font.family']='serif'
+    
+    p = flipperDict.flipperDict()
+    p.readFromFile(sys.argv[1])
+    freqs = p['frequencies']
+    cal = 1.0 # p['calibration_%d'%freqs[0]]*p['calibration_%d'%freqs[-1]]
+    theoryFile = p['theoryFile']
+    external_data = p['external_data']
+    global yRange, xRange
+    xRange = p['xRange']
+    yRange = p['yRange']
+    
+    powerOfL = p['powerOfL']
+    Ap = p['poissonAmplitude']
+    fow = p['showFowlerEtAl']
+    acbar = p['showACBAR']
+    quad = p['showQUAD']
+    wmap = p['showWMAP']
+    spt_11 = p['showSPT2011']
+    watermark = p['showWatermark']
+    Asz = p['Asz']
+    dumpPlotsTo = p['dumpPlotsTo']
+    
+    thisDir = ((os.path.abspath(".")).split("/"))[-1]
+
+    
+    
+    specDir ='spectra/'
+    if len(sys.argv) > 2:
+        specDir = 'spectra_%s/'%sys.argv[2]
+        
+    l,cl,clerr = numpy.loadtxt("%s/spectrum_%dx%d.dat"%(specDir,freqs[0],freqs[-1]),unpack=True)
+    pi = numpy.pi
+    
+    
+
+    X = numpy.loadtxt(theoryFile)
+    lTh = X[:,0]
+    clTh = X[:,1]
+    pylab.figure(figsize=(15,8))
+    pylab.semilogy(lTh, clTh,'#0BB5FF',lw=2)
+    pylab.text(3000,1.1,r'Lensed CMB',fontsize=22,color='#0BB5FF',rotation=-50)
+    cltot = None
+    ax = pylab.gca()
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontsize(22)
+
+    if Ap != None:
+        pylab.semilogy(lTh, (lTh/3000.)**2*Ap,'grey',lw=2)
+        cltot = clTh+(lTh/3000.)**2*Ap
+        print (lTh/3000.)**2*Ap
+        print cltot
+        pylab.text(5000,20,r'Poisson point sources',color='grey',fontsize=22,rotation=10)
+
+    if Asz != None:
+        X = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep+'data/Cl_sz.145')
+        lSz = X[:,0]
+        clSz = X[:,1]*2725000.**2
+        clSz *= Asz*(lSz**2/(2*numpy.pi))
+        pylab.semilogy(lSz, clSz,'#FF5721',lw=2)
+        pylab.text(6000,4,r'Sunyaev-Zeldovich effect',fontsize=22, color="#FF5721")
+        tck = splrep(lSz,clSz,k=3)
+        cltot += splev(lTh,tck)
+
+
+    if cltot != None:
+        pylab.semilogy(lTh, cltot,'#1D7CF2',lw=2)
+    if watermark:
+        pylab.text(1000,10,"INTERNAL ONLY",fontsize=60,alpha=0.2,rotation=40.)
+    pylab.text(6000,3000,r'From Das et al. (2010) \textit{in preparation}',fontsize=16)
+
+    if fow:
+        print "Adding Fowler et al."
+        lf,clf,clferr = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                  +'data/spec_fowler_etal_spt_bin.dat'\
+                                  ,unpack=True,skiprows=1)
+        plotWithErrors(lf,clf,clferr, fmt="bo",ecolor="0.8",ms=3,yRange=yRange)
+        
+
+    if acbar:
+        print "Adding ACBAR"
+        lac,lL,lU,clac,clacerr,_ignore = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                               +'data/acbar_09.dat'\
+                                               ,unpack=True,skiprows=4)
+        plotWithErrors(lac,clac,clacerr, fmt="go",ecolor="g",ms=3.0,yRange=yRange)
+
+    if quad:
+        print "Adding QUAD"
+        l_quad_,cl_quad_,cl_quad_err,_ignore = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                               +'data/quad_09.dat'\
+                                               ,unpack=True,skiprows=48)
+        plotWithErrors(l_quad_,cl_quad_,cl_quad_err, fmt="mo",ecolor="cyan",ms=3.0,yRange=yRange)
+    if spt_11:
+        print "Adding SPT_11"
+        l_spt_11_,cl_spt_11_,cl_spt_11_err,_ignore = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                               +'data/spt_keisler_etal_2011.dat'\
+                                               ,unpack=True,skiprows=48)
+        plotWithErrors(l_spt_11_,cl_spt_11_,cl_spt_11_err, fmt="mo",ecolor="magenta",ms=3.0,yRange=yRange)
+    
+    if wmap:
+        print "Adding WMAP 7 yr"
+        l_wmap_,_ig, _ig, cl_wmap_,cl_wmap_err,_ignore, _ignore  = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                               +'data/wmap_binned_tt_spectrum_7yr_v4.txt'\
+                                               ,unpack=True,skiprows=21)
+        plotWithErrors(l_wmap_,cl_wmap_,cl_wmap_err, fmt="o",ecolor="orange",ms=3.0,yRange=yRange)
+    
+    # Data spectrum 
+    spec = l**(2.0-powerOfL)/(2*pi)*cl*cal
+    spec_err  = l**(2.0-powerOfL)/(2*pi)*clerr*cal
+    plotWithErrors(l,spec,spec_err,fmt="ro",ecolor="r",elinewidth=1,ms=3.0)
+
+    pylab.xlim(xRange)
+    pylab.ylim(yRange)
+    pylab.xlabel(r'$\ell$',fontsize=22)
+    pylab.ylabel(r'$\ell(\ell+1) C_\ell/(2 \pi)$',fontsize=22)
+
+    freqTag = '%dx%d'%(freqs[0],freqs[-1])
+    thisDir = (thisDir.split(freqTag))[-1]
+    print "tag = %s"%thisDir
+    #f = pylab.gcf()
+    
+    pylab.savefig("%s/spectrum_%dx%d.png"%(specDir,freqs[0],freqs[-1]))
+    print thisDir
+    pylab.title(r'%s'%thisDir.replace("_","\_"))
+    
+    pylab.savefig("%s/spectrum_%dx%d_TAG_%s.png"%(specDir,freqs[0],freqs[-1],thisDir))
+    #f.set_size_inches(8,4.3)
+    #pylab.savefig("%s/spectrum_%dx%d.eps"%(specDir,freqs[0],freqs[-1]))
+    #pylab.savefig("%s/spectrum_%dx%d_TAG_%s.eps"%(specDir,freqs[0],freqs[-1],thisDir))
+    
+
+    pylab.clf()
+
+
+
+
+    # LINEAR PLOT
+    pylab.plot(lTh, lTh**2*clTh*1e-6,'#0BB5FF',lw=2)
+    
+    spec = l**(4.0-powerOfL)/(2*pi)*cl*cal*1e-6
+    spec_err  = l**(4.0-powerOfL)/(2*pi)*clerr*cal*1e-6
+    
+    pylab.errorbar(l,spec, spec_err, fmt="ro",ms=6.0,ecolor='r',elinewidth=1)
+    if cltot != None:
+        pylab.plot(lTh, lTh**2*cltot*1e-6,'#1D7CF2',lw=2)
+
+
+
+    if acbar:
+        print "Adding ACBAR"
+        plotWithErrors(lac+10,lac**2*clac*1e-6,lac**2*clacerr*1e-6, fmt="go",ecolor="green",ms=3)
+
+    if quad:
+        print "Adding QUAD"
+        l_quad_,cl_quad_,cl_quad_err,_ignore = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                               +'data/quad_09.dat'\
+                                               ,unpack=True,skiprows=48)
+        plotWithErrors(l_quad_ -10 ,l_quad_**2*cl_quad_*1e-6,l_quad_**2*cl_quad_err*1e-6, fmt="mo",ecolor="cyan",ms=3)
+
+
+    if spt_11:
+        print "Adding SPT_11"
+        l_spt_11_,cl_spt_11_,cl_spt_11_err,_ignore = numpy.loadtxt(os.environ['SPECK_DIR']+os.path.sep \
+                                               +'data/spt_keisler_etal_2011.dat'\
+                                               ,unpack=True,skiprows=48)
+        plotWithErrors(l_spt_11_ -10 ,l_spt_11_**2*cl_spt_11_*1e-6,l_spt_11_**2*cl_spt_11_err*1e-6, fmt="mo",ecolor="magenta",ms=3)
+
+    if wmap:
+        print "Adding WMAP"
+        plotWithErrors(l_wmap_ -10 ,l_wmap_**2*cl_wmap_*1e-6,l_wmap_**2*cl_wmap_err*1e-6, fmt="o",ecolor="orange",ms=3)
+
+    
+    try:
+        pylab.xlim(*p['xRangeLinear'])
+        pylab.ylim(*p['yRangeLinear'])
+    except:
+        pylab.xlim(170,4000)
+        pylab.ylim(0,2000)
+    pylab.xlabel(r'$\ell$',fontsize=22)
+    pylab.ylabel(r'$\ell^4 C_\ell/(2 \pi) (mK)^2$',fontsize=22)
+    
+    pylab.savefig("%s/spectrumLinear_%dx%d_TAG_%s.png"%(specDir,freqs[0],freqs[-1],thisDir))
+    #pylab.savefig("%s/spectrumLinear_%dx%d_TAG_%s.eps"%(specDir,freqs[0],freqs[-1],thisDir))
+
+    os.chdir(specDir)
+    if dumpPlotsTo != None:
+        print "Dumping plots into %s"%dumpPlotsTo
+        os.system("cp spectrum_%dx%d_TAG_%s.png %s"%(freqs[0],freqs[-1],thisDir,dumpPlotsTo))
+        os.system("cp spectrumLinear_%dx%d_TAG_%s.png %s"%(freqs[0],freqs[-1],thisDir,dumpPlotsTo))
+        

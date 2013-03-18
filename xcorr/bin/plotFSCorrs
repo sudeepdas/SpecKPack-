@@ -1,0 +1,50 @@
+#!/usr/bin/env python
+from flipper import flipperDict
+import argparse, xcorrUtils, xcorrFourier
+import matplotlib.pyplot as plt
+
+if __name__ == '__main__':
+    
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="plot real space correlation from data")
+    parser.add_argument('data_files', nargs='+', help='the data files storing the data to plot')
+    parser.add_argument('--title', type=str, help='the title to place on the axes')
+    parser.add_argument('--randoms_dir', type=str, help='the directory storing data from random correlations to get errors from')
+    parser.add_argument('--tag', type=str, default='', help='only consider with this tag in the randoms dir')
+    args = parser.parse_args()
+    
+    if args.randoms_dir is not None:
+        
+        assert(len(args.data_files) == 1)
+        dataFile = args.data_files[0]
+        
+         # get the rerrs
+        rerrs = xcorrFourier.estimateErrorFromRandoms(args.randoms_dir, args.tag)
+        
+        # plot with semianalytic errors first
+        fig, l, cl, cl_err = xcorrUtils.plot1DFourierCorr(dataFile)
+        
+        shift = abs(l[1]-l[0])*0.2
+        
+        # plot with randoms errors now
+        fig, l, cl, cl_err = xcorrUtils.plot1DFourierCorr(dataFile, currFig=fig, rerrs=rerrs, xshift=shift)
+        
+    else:
+        fig = None
+        # loop over each data file provided on command line
+        for dataFile in args.data_files:
+        
+            # make we have a *.dat file
+            if not 'dat' in dataFile:
+                continue
+        
+            # plot the 1D fourier space correlation
+            fig, l, cl, cl_err = xcorrUtils.plot1DFourierCorr(dataFile, currFig=fig)
+         
+    # set the title if one is provided
+    if args.title is not None:
+        ax = fig.get_axes()[0]
+        ax.set_title(args.title)
+
+    # show the figure
+    plt.show()

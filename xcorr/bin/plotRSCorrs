@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+from flipper import flipperDict
+import argparse, xcorrUtils, xcorrReal
+import matplotlib.pyplot as plt
+
+if __name__ == '__main__':
+    
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="plot real space correlation from data")
+    parser.add_argument('pickle_files', nargs='+', help='the pickle files storing the data to plot')
+    parser.add_argument('--title', type=str, help='the title to place on the axes')
+    parser.add_argument('--randoms_dir', type=str, help='the directory storing data from random correlations to get errors from')
+    parser.add_argument('--tag', type=str, default='', help='only consider with this tag in the randoms dir')
+    args = parser.parse_args()
+    
+    if args.randoms_dir is not None:
+        
+        # get the rerrs
+        rerrs = xcorrReal.estimateErrorFromRandoms(args.randoms_dir, args.tag)
+    
+    fig = None
+    # loop over each pickle file provided on command line
+    for pklFile in args.pickle_files:
+        
+        # make we have a *.pkl file
+        if not 'pkl' in pklFile:
+            continue
+        
+        # plot the 1D real space correlation
+        fig, theta, corr, corr_errs = xcorrUtils.plot1DRealCorr(pklFile, currFig=fig, rerrs=rerrs)
+         
+    # set the title if one is provided
+    if args.title is not None:
+        ax = fig.get_axes()[0]
+        ax.set_title(args.title)
+
+    # show the figure
+    plt.show()

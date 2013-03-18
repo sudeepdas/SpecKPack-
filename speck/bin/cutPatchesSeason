@@ -1,0 +1,213 @@
+#!/usr/bin/env python
+from flipper import *
+from scipy.interpolate import splrep,splev
+
+def cosineSqFilter(map,lMin,lMax,vkMaskLimits=None):
+    filteredMap = map.copy()
+    ft = fftTools.fftFromLiteMap(map)
+    ell = ft.modLMap
+    idSub = numpy.where((ell> lMin) & (ell <lMax))
+    idLow = numpy.where(ell<lMin)  
+    filter = (ell*0.+1.0)
+    filter[idLow] = 0.
+    filter[idSub] *= (numpy.cos((lMax - ell[idSub])/(lMax-lMin)*numpy.pi/2.))**2
+    ft.kMap[:] *= filter[:]
+    if vkMaskLimits != None:
+        #Yank the k-mode
+        idvk = numpy.where((ft.lx >vkMaskLimits[0]) & (ft.lx<vkMaskLimits[1]))
+        ft.kMap[:,idvk] = 0.
+    
+    filteredMap.data[:] = ft.mapFromFFT()
+    return filteredMap
+
+    
+    
+#cuts patches from a  map
+if __name__=="__main__":
+    
+    print "Reading dict file"
+    p = flipperDict.flipperDict()
+    p.read_from_file(sys.argv[1])
+    
+    freqs = p['frequencies']
+    buffer = p['bufferForLargeMap']
+    if buffer == None:
+        buffer = 2.0
+    print "buffer =%s"%buffer
+    for freq in freqs:
+        print freq
+        mapFiles = [p['mapFile_all_%d'%freq]]
+        map0 = liteMap.liteMapFromFits(mapFiles[0])
+        map0.info(showHeader=True)
+        # continue
+        srcFile  = p['sourceTemplateFile_%d'%freq]
+        if srcFile != None:
+            print "Reading in the source template file: %s"%srcFile
+            srcMap = liteMap.liteMapFromFits(srcFile)
+            srcMap.convertToMicroKFromJyPerSr(freq*1.0)
+            
+        
+        if (p['maskFile'] != None) and (freq == freqs[0]):
+            print "reading mask file" 
+            ptSrcMask = liteMap.liteMapFromFits(p['maskFile'])
+            maskFileBase = (p['maskFile'].split("/"))[-1]
+            
+        weightFiles = p['weightFile_all_%d'%freq]
+        if weightFiles != None:
+            assert(len(weightFiles) == len(mapFiles))
+            
+        aspect = p['aspectRatio']
+        ra0 = p['ra0']
+        ra1 = p['ra1']
+        
+        dec0 = p['dec0']
+        dec1 = p['dec1']
+        
+
+
+        nMapsDec = p['nMapsDec']
+        vkMaskLimits = p['verticalkMaskLimits']
+        print vkMaskLimits
+        # sys.exit()
+        
+        nPixDec = int((numpy.abs(dec1 - dec0)/float(nMapsDec))/(map0.pixScaleY*180./numpy.pi)+0.5)
+        dDec = nPixDec*map0.pixScaleY*180./numpy.pi
+        dDec = numpy.abs(dec1 - dec0)/float(nMapsDec)
+        print "nPix dec = %f"%nPixDec
+        dRa = dDec/numpy.cos((numpy.pi/180.)*((dec0+dec1)/2.))*aspect
+
+        
+        print "dRa = %f"%dRa
+        print "dDec = %f"%dDec
+        
+        nMapsRa = numpy.floor(numpy.abs(ra1-ra0)/dRa)
+        nMaps = nMapsDec*nMapsRa
+
+        mapDir = 'patches'
+        auxMapDir = 'auxMaps'
+        try:
+            os.makedirs(mapDir)
+            
+        except:
+            pass
+        try:
+            os.makedirs(mapDir+'/patchMovies')
+        except:
+            pass
+        try:
+            os.mkdir(auxMapDir)
+        except:
+            pass
+
+        print "Will create %d X %d = %d Maps"%(nMapsDec,nMapsRa,nMaps)
+
+        
+        iMap = 0
+        iMapS = 'all'
+        if (p['maskFile'] != None) & (freq == freqs[0]):
+            f = open(auxMapDir+os.path.sep+'percAreaLostToMask.dat',mode="w")
+            f.write("Mask: %s\n"%maskFileBase)
+
+
+        filter = p['highPassCosSqFilter']
+        pwDict = p['prewhitener']
+
+        for mapFile in mapFiles:
+            count = 0
+            map0 = liteMap.liteMapFromFits(mapFile)
+            # cut out big enough map to hold all patches
+            sMap = map0.selectSubMap(ra0-buffer,ra1+buffer,dec0-buffer,dec1+buffer)
+            if srcFile != None:
+                subSrcMap = srcMap.selectSubMap(ra0-buffer,ra1+buffer,dec0-buffer,dec1+buffer)
+                print "subtracting temaplate"
+                sMap.data[:] -= subSrcMap.data[:]
+            if weightFiles !=None:
+                weightMap = liteMap.liteMapFromFits(weightFiles[iMap])
+                weightSubMap = weightMap.selectSubMap(ra0-buffer,ra1+buffer,dec0-buffer,dec1+buffer)
+                
+            sMap.plot(valueRange=[-200,200],\
+                      colBarLabel=r'$\delta T_{\mathrm{CMB}}$'+' '+r'$(\mu \mathrm{K}) $'\
+                      ,saveFig=auxMapDir+os.path.sep+'subMap_%d_%s.png'%(freq,iMapS),\
+                      colBarShrink=0.4,axesLabels='decimal',title='map_%d_%s'%(freq,iMapS))
+
+            sMap.writeFits(auxMapDir+os.path.sep+'subMap_%d_%s.fits'%(freq,iMapS),overWrite=True)
+            pylab.clf()
+
+            if filter['apply']:
+                print "filtering subMap..."
+                sMap = cosineSqFilter(sMap,filter['lMin'],filter['lMax'],\
+                                      vkMaskLimits=vkMaskLimits)
+                sMap.plot(valueRange=[-200,200],colBarLabel=r'$\delta T_{\mathrm{CMB}}$'+' '+ '$(\mu \mathrm{K}) $',\
+                          saveFig=auxMapDir+os.path.sep+'subMapFiltered_%d_%s.png'%(freq,iMapS),\
+                          colBarShrink=0.4,axesLabels='decimal',title='mapHighPass_%d_%s'%(freq,iMapS))
+                sMap.writeFits(auxMapDir+os.path.sep+'subMapFiltered_%d_%s.fits'%(freq,iMapS),overWrite=True)
+                pylab.clf()
+                print "done"
+                # print sMap.info()
+            if pwDict['apply']:
+                print "prewhitening subMap ..."
+                if iMap == 0 and freq == freqs[0]:
+                    pw = prewhitener.prewhitener(pwDict['radius'],\
+                                                 addBackFraction=pwDict['addBackFraction'],\
+                                                 smoothingFWHM=pwDict['gaussFWHM'],\
+                                                 map = sMap)
+                # print sMap.info()
+                sMap = pw.apply(sMap)
+                # print pw.radius, pw.addBackFraction,pw.smoothingFWHM
+                # print sMap.info()
+                sMap.writeFits(auxMapDir+os.path.sep+'subMapPW_%d_%s.fits'%(freq,iMapS),overWrite=True)
+                
+            map0 = sMap.copy()
+
+            # print "... done .. proceeding to cut patches"
+            for i in xrange(nMapsRa):
+                sRa0 = (ra0 + i*dRa)
+                sRa1 = (ra0 + (i+1)*dRa)
+                
+                for j in xrange(nMapsDec):
+                    sDec0 = (dec0 + j*dDec)
+                    sDec1 = (dec0 + (j+1)*dDec)
+
+                    
+                    
+                    patch0 = map0.selectSubMap(sRa0,sRa1,sDec0,sDec1)
+                    print "********** Patch %d ***********\n"%count
+                    print " "
+
+                    
+                    
+                    
+                    patch0.info()
+                    patch0.plot(valueRange=[-500,500],show=False)
+                    pylab.title('patch_%d_%03d_%s'%(freq,count,iMapS))
+                    pylab.savefig(mapDir+os.path.sep+'patchMovies/patch_%s_%03d_%s.png'%(freq,count,iMapS))
+                    pylab.clf()
+                    pylab.close()
+                    
+                    if ((iMap == 0)&(p['maskFile'] !=None)&(freq == freqs[0])):
+                        print "cutting mask"
+                        maskPatch = ptSrcMask.selectSubMap(sRa0,sRa1,sDec0,sDec1)
+                        maskPatch.writeFits(mapDir+os.path.sep+'mask%03d'%count,overWrite=True)
+                        f.write("%03d     %5.3f\n"%(count,(1.-maskPatch.data.mean())*100))
+                                                    
+                    if weightFiles !=None:
+                        wtPatch = weightSubMap.selectSubMap(sRa0,sRa1,\
+                                                            sDec0,sDec1)
+                        print "cutting patch from weightMap"
+                        wtPatch.writeFits(mapDir+os.path.sep+'weight_%d_%03d_%s'%(freq,count,iMapS),overWrite=True)
+
+                    patch0.writeFits(mapDir+os.path.sep+'patch_%d_%03d_%s'%(freq,count,iMapS),overWrite=True)
+                    
+                count += 1
+            del map0
+            #iMap += 1
+            
+
+        # create frame movies
+        os.chdir(mapDir+os.path.sep+'patchMovies/')
+        for i in xrange(nMaps):
+    
+            os.system('convert -loop 0 -delay 100 patch_%d_%03d_*.png patch_%d_%03d.gif'%(freq,i,freq,i))
+        os.chdir("../../")
+        # os.system('rm -rf *png')
+        if (p['maskFile'] != None)  & (freq == freqs[0]): f.close()

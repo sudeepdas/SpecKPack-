@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+from flipper import flipperDict
+import argparse, scSpectraUtils
+import os, sys
+
+if __name__ == "__main__":
+    """
+    @brief compile the various auto/cross spectra
+    """
+
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description="compile the various spectra")
+    parser.add_argument('param_file', type=str, help='the parameter file')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='whether to ouput to stdout')
+
+    args = parser.parse_args()
+
+    p = flipperDict.flipperDict()
+    p.read_from_file(args.param_file)
+    
+    # if we want to suppress out, redirect stdout to nothing
+    if args.quiet:
+        sys.stdout = open(os.devnull, "w")
+    
+    # cut the patches
+    err = scSpectraUtils.compileSpectra(p)
+
+    

@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+from flipper import *
+pylab.rcParams.update({'text.usetex':True,'font.family':'serif','axes.labelsize':16})
+p = flipperDict.flipperDict()
+p.readFromFile(sys.argv[1])
+
+
+file_a = p['refSpectrum']
+file_b = p['testSpectrum']
+
+la, cla , clerra = numpy.loadtxt(file_a,unpack=True)
+lb, clb , clerrb = numpy.loadtxt(file_b,unpack=True)
+
+tag_a = file_a.split("/")[0]
+tag_b = file_b.split("/")[0]
+assert(numpy.alltrue(la == lb))
+id1 = numpy.where((la>500) &(la<2500))
+id2 = numpy.where((la>2500) &(la<4500))
+id3 = numpy.where((la>4500) &(la<9500)&(cla>0.)&(clb>0.))
+id0 = numpy.where((la>500))
+print tag_a, tag_b
+
+r1 = clb[id1]/cla[id1]
+r2 = clb[id2]/cla[id2]
+r3 = clb[id3]/cla[id3]
+
+n1 = len(id1[0])
+n2 = len(id2[0])
+n3 = len(id3[0])
+print n1,n2,n3
+print la[id1]
+print la[id2]
+
+sqrt = numpy.sqrt
+
+print r1.mean(),r1.std()/sqrt(n1-1.)
+print r2.mean(),r2.std()/sqrt(n2-1.)
+print r3.mean(), r3.std()/sqrt(n3-1.)
+
+
+
+
+try:
+    os.mkdir("calibrationResults")
+except:
+    pass
+
+g = open("calibrationResults/cal_%s_ref_%s.dat"%(tag_b,tag_a),"w")
+
+g.write("%f %f\n"%(r1.mean(),r1.std()/sqrt(n1-1.)))
+g.write("%f %f\n"%(r2.mean(),r2.std()/sqrt(n2-1.)))
+g.write("%f %f\n"%(r3.mean(),r3.std()/sqrt(n3-1.)))
+
+g.close
+
+fig = pylab.figure(figsize=(6,4))
+fig.add_axes([0.15,0.2,0.8,0.7])
+pylab.plot(la[id1],(clb/cla)[id1],"o",color='red',alpha=0.5)
+pylab.plot(la[id2],(clb/cla)[id2],"o",color='green',alpha=0.5)
+pylab.plot(la[id3],(clb/cla)[id3],"o",color='blue',alpha=0.5)
+ls = [la[id1].mean(),la[id2].mean(),la[id3].mean()]
+means = [r1.mean(),r2.mean(),r3.mean()]
+stds = [r1.std()/sqrt(n1-1.),r2.std()/sqrt(n2-1.),r3.std()/sqrt(n3-1.)]
+exts = [(la[id1].max()-la[id1].min())/2.,(la[id2].max()-la[id2].min())/2.,(la[id3].max()-la[id3].min())/2.]
+pylab.errorbar(ls,means,stds,fmt='D',color="k",ms=3)#,xerr=exts)
+pylab.text(ls[0]-exts[0]/1.,1.8,"$%5.3f\pm%5.3f$"%(means[0],stds[0]),color='red')
+pylab.text(ls[1]-exts[1]/1.,1.5,"$%5.3f\pm%5.3f$"%(means[1],stds[1]),color='green',alpha=0.5)
+pylab.text(ls[2]-exts[2]/1.,1.8,"$%5.3f\pm%5.3f$"%(means[2],stds[2]),color='blue',alpha=0.5)
+
+pylab.xlabel("Multipole $\ell$")
+pylab.ylabel(r"$C_\ell^X/C_\ell^{\rm{ref}}$")
+tit = (r"cal_%s_ref_%s"%(tag_b,tag_a)).replace("_","\_")
+sub=''
+if len(sys.argv)>2:
+    sub = tit
+    tit = sys.argv[2]
+    tit = tit.replace("_","\_")
+    
+pylab.suptitle(r"\textbf{%s}"%tit,fontsize=10)
+pylab.title(r"{%s}"%sub,fontsize=8)
+
+k =pylab.gca()
+k.set_xscale('log')
+pylab.xlim(500,10000)
+pylab.ylim(0,2)
+pylab.xticks([500,2500,4500,10000],['500','2500','4500','10000'])
+pylab.savefig("calibrationResults/cal_%s_ref_%s.png"%(tag_b,tag_a))
+
+os.system("cp calibrationResults/*.png /u/sudeep/WWW/public/mobydump/")
