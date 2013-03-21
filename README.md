@@ -1,7 +1,7 @@
 SpecKPack-
 ==========
 
-Python tools to perform power spectrum and cross coreelation analysis on cosmological maps.
+Python tools to perform power spectrum and cross correlation analysis on cosmological maps.
 
 Find the documentation at:
 
